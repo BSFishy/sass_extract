@@ -23,6 +23,7 @@ void main(args) {
   };
   pkg.npmAdditionalFiles.fn = _fetchJSTypes;
   pkg.npmToken.fn = () => Platform.environment['NPM_TOKEN'];
+  pkg.githubBearerToken.fn = () => Platform.environment['GITHUB_TOKEN'];
 
   pkg.addNpmTasks();
   pkg.addGithubTasks();

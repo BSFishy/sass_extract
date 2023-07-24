@@ -22,9 +22,13 @@ jobs:
           node-version: 18
       - name: Create Github release
         run: dart run grinder pkg-github-all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Fix Github release permissions
         run: dart run grinder pkg-github-fix-permissions
-      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Release to NPM
         run: dart run grinder pkg-npm-deploy
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
