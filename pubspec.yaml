@@ -1,6 +1,6 @@
 name: sass_extract
 description: A sample command-line application.
-version: 0.1.0-alpha.1
+version: 1.0.0
 
 environment:
   sdk: ^3.0.6
