@@ -22,6 +22,7 @@ void main(args) {
     'extractVariablesFromString',
   };
   pkg.npmAdditionalFiles.fn = _fetchJSTypes;
+  pkg.npmToken.fn = () => Platform.environment['NPM_TOKEN'];
 
   pkg.addNpmTasks();
   pkg.addGithubTasks();

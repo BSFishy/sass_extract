@@ -1,5 +1,5 @@
 {
-  "name": "sass_extract",
+  "name": "sass-extract-dart",
   "description": "A tool to extract Sass variables from a file",
   "license": "MIT",
   "bugs": "https://github.com/BSFishy/sass_extract/issues",
