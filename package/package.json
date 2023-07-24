@@ -1,0 +1,24 @@
+{
+  "name": "sass_extract",
+  "description": "",
+  "license": "MIT",
+  "bugs": "https://github.com/BSFishy/sass_extract/issues",
+  "homepage": "https://github.com/BSFishy/sass_extract",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BSFishy/sass_extract"
+  },
+  "author": {
+    "name": "Matt Provost",
+    "email": "mattprovost6@gmail.com",
+    "url": "https://github.com/BSFishy"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "scss",
+    "sass",
+    "variables"
+  ]
+}

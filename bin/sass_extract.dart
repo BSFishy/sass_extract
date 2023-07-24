@@ -1,5 +1,5 @@
 import 'package:sass_extract/sass_extract.dart' as sass_extract;
-import 'dart:io';
+import 'package:sass_extract/src/io.dart';
 import 'dart:convert';
 import 'package:path/path.dart';
 import 'package:args/args.dart';
@@ -33,8 +33,7 @@ void main(List<String> arguments) {
   final outputPath = (results['output'] as String?) ?? setExtension(inputPath, '.json');
   final importPath = dirname(inputPath);
 
-  final inputFile = File(inputPath);
-  final contents = inputFile.readAsStringSync();
+  final contents = readFile(inputPath);
 
   Map<String, Object?> variables;
   try {
@@ -48,8 +47,8 @@ void main(List<String> arguments) {
 
   final json = jsonEncode(variables);
 
-  final outputFile = File(outputPath);
-  outputFile.writeAsString('$json\n');
+  // final outputFile = File(outputPath);
+  writeFile(outputPath, '$json\n');
 
   if (!quiet) {
     print('Wrote to $outputPath');
