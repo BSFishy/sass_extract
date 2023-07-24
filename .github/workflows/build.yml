@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: ['**']
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    branches: ['**']
+    paths-ignore:
+      - '**/*.md'
+
+jobs:
+  build-standalone:
+    name: Build Standalone
+    runs-on: ubuntu-latest
+    steps:
+     - name: Checkout
+       uses: actions/checkout@v2
+     - name: Setup Dart
+       uses: dart-lang/setup-dart@v1
+       with:
+         sdk: stable
+     - name: Setup Node
+       uses: actions/setup-node@v3
+       with:
+         node-version: 18
+     - name: Build standalone
+       run: dart run grinder pkg-standalone-all
+  build-js:
+    name: Build JS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Build standalone
+        run: dart run grinder pkg-npm-release
