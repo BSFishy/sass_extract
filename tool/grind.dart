@@ -21,8 +21,12 @@ void main(args) {
   pkg.jsEsmExports.value = {
     'extractVariablesFromString',
   };
+  pkg.npmAdditionalFiles.fn = _fetchJSTypes;
 
-  pkg.addAllTasks();
+  pkg.addNpmTasks();
+  pkg.addGithubTasks();
+  pkg.addStandaloneTasks();
+
   grind(args);
 }
 
@@ -83,4 +87,15 @@ String _readAndResolveMarkdown(String path) => File(path)
 void _matchError(Match match, String message, {Object? url}) {
   var file = SourceFile.fromString(match.input, url: url);
   throw SourceSpanException(message, file.span(match.start, match.end));
+}
+
+Map<String, String> _fetchJSTypes() {
+  final files = {
+    'index.d.ts': 'package/index.d.ts'
+  };
+
+  return {
+    for (final entry in files.entries)
+      entry.key: File(entry.value).readAsStringSync()
+  };
 }

@@ -1,6 +1,6 @@
 {
   "name": "sass_extract",
-  "description": "",
+  "description": "A tool to extract Sass variables from a file",
   "license": "MIT",
   "bugs": "https://github.com/BSFishy/sass_extract/issues",
   "homepage": "https://github.com/BSFishy/sass_extract",
@@ -20,5 +20,9 @@
     "scss",
     "sass",
     "variables"
-  ]
+  ],
+  "types": "index.d.ts",
+  "exports": {
+    "types": "./index.d.ts"
+  }
 }
