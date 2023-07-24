@@ -41,5 +41,5 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
-      - name: Build standalone
+      - name: Build JS
         run: dart run grinder pkg-npm-release
