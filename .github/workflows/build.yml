@@ -21,10 +21,6 @@ jobs:
        uses: dart-lang/setup-dart@v1
        with:
          sdk: stable
-     - name: Setup Node
-       uses: actions/setup-node@v3
-       with:
-         node-version: 18
      - name: Build standalone
        run: dart run grinder pkg-standalone-all
   build-js:
@@ -43,3 +39,15 @@ jobs:
           node-version: 18
       - name: Build JS
         run: dart run grinder pkg-npm-release
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Run tests
+        run: dart test

@@ -473,6 +473,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.5.4"
+  test_descriptor:
+    dependency: "direct dev"
+    description:
+      name: test_descriptor
+      sha256: abe245e8b0d61245684127fe32343542c25dc2a1ce8f405531637241d98d07e4
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.1"
   test_process:
     dependency: transitive
     description:
