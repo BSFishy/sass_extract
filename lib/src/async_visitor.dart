@@ -2,13 +2,7 @@
 // MIT-style license that can be found in the LICENSE file or at
 // https://opensource.org/licenses/MIT.
 
-// DO NOT EDIT. This file was generated from async_visitor.dart.
-// See tool/grind/synchronize.dart for details.
-//
-// Checksum: ddded72e19376afa60ac4089b513133be119259e
-//
-// ignore_for_file: unused_import
-
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:charcode/charcode.dart';
@@ -22,8 +16,8 @@ import 'package:sass/src/ast/css.dart';
 import 'package:sass/src/ast/css/modifiable.dart';
 import 'package:sass/src/ast/node.dart';
 import 'package:sass/src/ast/sass.dart';
-import 'package:sass/src/environment.dart';
-import 'package:sass/src/import_cache.dart';
+import 'package:sass/src/async_environment.dart';
+import 'package:sass/src/async_import_cache.dart';
 import 'package:sass/src/callable.dart';
 import 'package:sass/src/color_names.dart';
 import 'package:sass/src/configuration.dart';
@@ -50,10 +44,12 @@ import 'package:sass/src/visitor/interface/expression.dart';
 import 'package:sass/src/visitor/interface/statement.dart';
 
 /// A visitor that executes Sass code to produce a CSS tree.
-class EvaluateVisitor
-    implements StatementVisitor<Value?>, ExpressionVisitor<Value> {
+class AsyncEvaluateVisitor
+    implements
+        StatementVisitor<Future<Value?>>,
+        ExpressionVisitor<Future<Value>> {
   /// The import cache used to import other stylesheets.
-  final ImportCache? _importCache;
+  final AsyncImportCache? _importCache;
 
   /// The Node Sass-compatible importer to use when loading new Sass files when
   /// compiled to Node.js.
@@ -61,13 +57,13 @@ class EvaluateVisitor
 
   /// Built-in functions that are globally-accessible, even under the new module
   /// system.
-  final _builtInFunctions = <String, Callable>{};
+  final _builtInFunctions = <String, AsyncCallable>{};
 
   /// Built in modules, indexed by their URLs.
-  final _builtInModules = <Uri, Module<Callable>>{};
+  final _builtInModules = <Uri, Module>{};
 
   /// All modules that have been loaded and evaluated so far.
-  final _modules = <Uri, Module<Callable>>{};
+  final _modules = <Uri, Module>{};
 
   /// The first [Configuration] used to load a module [Uri].
   final _moduleConfigurations = <Uri, Configuration>{};
@@ -93,7 +89,7 @@ class EvaluateVisitor
   final bool _quietDeps;
 
   /// The current lexical environment.
-  Environment _environment;
+  AsyncEnvironment _environment;
 
   /// The style rule that defines the current parent selector, if any.
   ///
@@ -117,7 +113,7 @@ class EvaluateVisitor
   var _member = "root stylesheet";
 
   /// The innermost user-defined callable that's being invoked.
-  UserDefinedCallable<Environment>? _currentCallable;
+  UserDefinedCallable<AsyncEnvironment>? _currentCallable;
 
   /// The node for the innermost callable that's being invoked.
   ///
@@ -187,7 +183,7 @@ class EvaluateVisitor
   ///
   /// If this is `null`, relative imports aren't supported in the current
   /// stylesheet.
-  Importer? _importer;
+  AsyncImporter? _importer;
 
   /// Whether we're in a dependency.
   ///
@@ -225,7 +221,7 @@ class EvaluateVisitor
   ///
   /// This is `null` unless there are any pre-module comments in the current
   /// stylesheet.
-  Map<Module<Callable>, List<CssComment>>? _preModuleComments;
+  Map<Module, List<CssComment>>? _preModuleComments;
 
   /// The configuration for the current module.
   ///
@@ -234,24 +230,24 @@ class EvaluateVisitor
 
   /// Creates a new visitor.
   ///
-  /// Most arguments are the same as those to [evaluate].
-  EvaluateVisitor(
-      {ImportCache? importCache,
-      NodeImporter? nodeImporter,
-      Iterable<Callable>? functions,
-      Logger? logger,
-      bool quietDeps = false,
-      bool sourceMap = false})
+  /// Most arguments are the same as those to [evaluateAsync].
+  AsyncEvaluateVisitor(
+      {AsyncImportCache? importCache,
+        NodeImporter? nodeImporter,
+        Iterable<AsyncCallable>? functions,
+        Logger? logger,
+        bool quietDeps = false,
+        bool sourceMap = false})
       : _importCache = nodeImporter == null
-            ? importCache ?? ImportCache.none(logger: logger)
-            : null,
+      ? importCache ?? AsyncImportCache.none(logger: logger)
+      : null,
         _nodeImporter = nodeImporter,
         _logger = logger ?? const Logger.stderr(),
         _quietDeps = quietDeps,
         // _sourceMap = sourceMap,
-        // The default environment is overridden in [_execute] for full
-        // stylesheets, but for [AsyncEvaluator] this environment is used.
-        _environment = Environment() {
+  // The default environment is overridden in [_execute] for full
+  // stylesheets, but for [AsyncEvaluator] this environment is used.
+        _environment = AsyncEnvironment() {
     var metaFunctions = [
       // These functions are defined in the context of the evaluator because
       // they need access to the [_environment] or other local state.
@@ -271,23 +267,23 @@ class EvaluateVisitor
       }, url: "sass:meta"),
 
       BuiltInCallable.function("function-exists", r"$name, $module: null",
-          (arguments) {
-        var variable = arguments[0].assertString("name");
-        var module = arguments[1].realNull?.assertString("module");
-        return SassBoolean(_environment.functionExists(
+              (arguments) {
+            var variable = arguments[0].assertString("name");
+            var module = arguments[1].realNull?.assertString("module");
+            return SassBoolean(_environment.functionExists(
                 variable.text.replaceAll("_", "-"),
                 namespace: module?.text) ||
-            _builtInFunctions.containsKey(variable.text));
-      }, url: "sass:meta"),
+                _builtInFunctions.containsKey(variable.text));
+          }, url: "sass:meta"),
 
       BuiltInCallable.function("mixin-exists", r"$name, $module: null",
-          (arguments) {
-        var variable = arguments[0].assertString("name");
-        var module = arguments[1].realNull?.assertString("module");
-        return SassBoolean(_environment.mixinExists(
-            variable.text.replaceAll("_", "-"),
-            namespace: module?.text));
-      }, url: "sass:meta"),
+              (arguments) {
+            var variable = arguments[0].assertString("name");
+            var module = arguments[1].realNull?.assertString("module");
+            return SassBoolean(_environment.mixinExists(
+                variable.text.replaceAll("_", "-"),
+                namespace: module?.text));
+          }, url: "sass:meta"),
 
       BuiltInCallable.function("content-exists", "", (arguments) {
         if (!_environment.inMixin) {
@@ -336,85 +332,88 @@ class EvaluateVisitor
         var callable = css
             ? PlainCssCallable(name.text)
             : _addExceptionSpan(
-                _callableNode!,
+            _callableNode!,
                 () => _getFunction(name.text.replaceAll("_", "-"),
-                    namespace: module?.text));
+                namespace: module?.text));
         if (callable != null) return SassFunction(callable);
 
         throw "Function not found: $name";
       }, url: "sass:meta"),
 
-      BuiltInCallable.function("call", r"$function, $args...", (arguments) {
-        var function = arguments[0];
-        var args = arguments[1] as SassArgumentList;
+      AsyncBuiltInCallable.function("call", r"$function, $args...",
+              (arguments) async {
+            var function = arguments[0];
+            var args = arguments[1] as SassArgumentList;
 
-        var callableNode = _callableNode!;
-        var invocation = ArgumentInvocation([], {}, callableNode.span,
-            rest: ValueExpression(args, callableNode.span),
-            keywordRest: args.keywords.isEmpty
-                ? null
-                : ValueExpression(
+            var callableNode = _callableNode!;
+            var invocation = ArgumentInvocation([], {}, callableNode.span,
+                rest: ValueExpression(args, callableNode.span),
+                keywordRest: args.keywords.isEmpty
+                    ? null
+                    : ValueExpression(
                     SassMap({
                       for (var entry in args.keywords.entries)
                         SassString(entry.key, quotes: false): entry.value
                     }),
                     callableNode.span));
 
-        if (function is SassString) {
-          warnForDeprecation(
-              "Passing a string to call() is deprecated and will be illegal in "
-              "Dart Sass 2.0.0.\n"
-              "\n"
-              "Recommendation: call(get-function($function))",
-              Deprecation.callString);
+            if (function is SassString) {
+              warnForDeprecation(
+                  "Passing a string to call() is deprecated and will be illegal in "
+                      "Dart Sass 2.0.0.\n"
+                      "\n"
+                      "Recommendation: call(get-function($function))",
+                  Deprecation.callString);
 
-          var callableNode = _callableNode!;
-          var expression =
+              var callableNode = _callableNode!;
+              var expression =
               FunctionExpression(function.text, invocation, callableNode.span);
-          return expression.accept(this);
-        }
+              return await expression.accept(this);
+            }
 
-        var callable = function.assertFunction("function").callable;
-        // ignore: unnecessary_type_check
-        if (callable is Callable) {
-          return _runFunctionCallable(invocation, callable, _callableNode!);
-        } else {
-          throw SassScriptException(
-              "The function ${callable.name} is asynchronous.\n"
-              "This is probably caused by a bug in a Sass plugin.");
-        }
-      }, url: "sass:meta")
+            var callable = function.assertFunction("function").callable;
+            // ignore: unnecessary_type_check
+            if (callable is AsyncCallable) {
+              return await _runFunctionCallable(
+                  invocation, callable, _callableNode!);
+            } else {
+              throw SassScriptException(
+                  "The function ${callable.name} is asynchronous.\n"
+                      "This is probably caused by a bug in a Sass plugin.");
+            }
+          }, url: "sass:meta")
     ];
 
     var metaMixins = [
-      BuiltInCallable.mixin("load-css", r"$url, $with: null", (arguments) {
-        // var url = Uri.parse(arguments[0].assertString("url").text);
-        var withMap = arguments[1].realNull?.assertMap("with").contents;
+      AsyncBuiltInCallable.mixin("load-css", r"$url, $with: null",
+              (arguments) async {
+            // var url = Uri.parse(arguments[0].assertString("url").text);
+            var withMap = arguments[1].realNull?.assertMap("with").contents;
 
-        var callableNode = _callableNode!;
-        var configuration = const Configuration.empty();
-        if (withMap != null) {
-          var values = <String, ConfiguredValue>{};
-          var span = callableNode.span;
-          withMap.forEach((variable, value) {
-            var name =
+            var callableNode = _callableNode!;
+            var configuration = const Configuration.empty();
+            if (withMap != null) {
+              var values = <String, ConfiguredValue>{};
+              var span = callableNode.span;
+              withMap.forEach((variable, value) {
+                var name =
                 variable.assertString("with key").text.replaceAll("_", "-");
-            if (values.containsKey(name)) {
-              throw "The variable \$$name was configured twice.";
+                if (values.containsKey(name)) {
+                  throw "The variable \$$name was configured twice.";
+                }
+
+                values[name] = ConfiguredValue.explicit(value, span, callableNode);
+              });
+              configuration = ExplicitConfiguration(values, callableNode);
             }
 
-            values[name] = ConfiguredValue.explicit(value, span, callableNode);
-          });
-          configuration = ExplicitConfiguration(values, callableNode);
-        }
-
-        // await _loadModule(url, "load-css()", callableNode,
-        //         (module, _) => _combineCss(module, clone: true).accept(this),
-        //     baseUrl: callableNode.span.sourceUrl,
-        //     configuration: configuration,
-        //     namesInErrors: true);
-        _assertConfigurationIsEmpty(configuration, nameInError: true);
-      }, url: "sass:meta")
+            // await _loadModule(url, "load-css()", callableNode,
+            //         (module, _) => _combineCss(module, clone: true).accept(this),
+            //     baseUrl: callableNode.span.sourceUrl,
+            //     configuration: configuration,
+            //     namesInErrors: true);
+            _assertConfigurationIsEmpty(configuration, nameInError: true);
+          }, url: "sass:meta")
     ];
 
     var metaModule = BuiltInModule("meta",
@@ -431,19 +430,20 @@ class EvaluateVisitor
     }
   }
 
-  Module<Callable> run(Importer? importer, Stylesheet node) {
+  Future<Module> run(AsyncImporter? importer, Stylesheet node) async {
     try {
-      return withEvaluationContext(_EvaluationContext(this, node), () {
-        var url = node.span.sourceUrl;
-        if (url != null) {
-          _activeModules[url] = null;
-          if (!(_asNodeSass && url.toString() == 'stdin')) _loadedUrls.add(url);
-        }
+      return await withEvaluationContext(_EvaluationContext(this, node),
+              () async {
+            var url = node.span.sourceUrl;
+            if (url != null) {
+              _activeModules[url] = null;
+              if (!(_asNodeSass && url.toString() == 'stdin')) _loadedUrls.add(url);
+            }
 
-        var module = _addExceptionTrace(() => _execute(importer, node));
+            var module = await _addExceptionTrace(() => _execute(importer, node));
 
-        return module;
-      });
+            return module;
+          });
     } on SassException catch (error, stackTrace) {
       throwWithTrace(error.withLoadedUrls(_loadedUrls), stackTrace);
     }
@@ -507,11 +507,11 @@ class EvaluateVisitor
   ///
   /// The [stackFrame] and [nodeWithSpan] are used for the name and location of
   /// the stack frame for the duration of the [callback].
-  void _loadModule(Uri url, String stackFrame, AstNode nodeWithSpan,
-      void Function(Module<Callable> module, bool firstLoad) callback,
+  Future<void> _loadModule(Uri url, String stackFrame, AstNode nodeWithSpan,
+      FutureOr<void> Function(Module module, bool firstLoad) callback,
       {Uri? baseUrl,
-      Configuration? configuration,
-      bool namesInErrors = false}) {
+        Configuration? configuration,
+        bool namesInErrors = false}) async {
     var builtInModule = _builtInModules[url];
     if (builtInModule != null) {
       if (configuration is ExplicitConfiguration) {
@@ -524,25 +524,26 @@ class EvaluateVisitor
 
       // Always consider built-in stylesheets to be "already loaded", since they
       // never require additional execution to load and never produce CSS.
-      _addExceptionSpan(nodeWithSpan, () => callback(builtInModule, false));
+      await _addExceptionSpanAsync(
+          nodeWithSpan, () => callback(builtInModule, false));
       return;
     }
 
-    _withStackFrame(stackFrame, nodeWithSpan, () {
-      var result =
-          _loadStylesheet(url.toString(), nodeWithSpan.span, baseUrl: baseUrl);
+    await _withStackFrame(stackFrame, nodeWithSpan, () async {
+      var result = await _loadStylesheet(url.toString(), nodeWithSpan.span,
+          baseUrl: baseUrl);
       var stylesheet = result.stylesheet;
 
       var canonicalUrl = stylesheet.span.sourceUrl;
       if (canonicalUrl != null && _activeModules.containsKey(canonicalUrl)) {
         var message = namesInErrors
             ? "Module loop: ${p.prettyUri(canonicalUrl)} is already being "
-                "loaded."
+            "loaded."
             : "Module loop: this module is already being loaded.";
 
         throw _activeModules[canonicalUrl].andThen((previousLoad) =>
-                _multiSpanException(message, "new load",
-                    {previousLoad.span: "original load"})) ??
+            _multiSpanException(message, "new load",
+                {previousLoad.span: "original load"})) ??
             _exception(message);
       }
       if (canonicalUrl != null) _activeModules[canonicalUrl] = nodeWithSpan;
@@ -550,9 +551,9 @@ class EvaluateVisitor
       var firstLoad = !_modules.containsKey(canonicalUrl);
       var oldInDependency = _inDependency;
       _inDependency = result.isDependency;
-      Module<Callable> module;
+      Module module;
       try {
-        module = _execute(result.importer, stylesheet,
+        module = await _execute(result.importer, stylesheet,
             configuration: configuration,
             nodeWithSpan: nodeWithSpan,
             namesInErrors: namesInErrors);
@@ -561,7 +562,8 @@ class EvaluateVisitor
         _inDependency = oldInDependency;
       }
 
-      _addExceptionSpan(nodeWithSpan, () => callback(module, firstLoad),
+      await _addExceptionSpanAsync(
+          nodeWithSpan, () => callback(module, firstLoad),
           addStackFrame: false);
     });
   }
@@ -574,10 +576,10 @@ class EvaluateVisitor
   /// If [namesInErrors] is `true`, this includes the names of modules in errors
   /// relating to them. This should only be `true` if the names won't be obvious
   /// from the source span.
-  Module<Callable> _execute(Importer? importer, Stylesheet stylesheet,
+  Future<Module> _execute(AsyncImporter? importer, Stylesheet stylesheet,
       {Configuration? configuration,
-      AstNode? nodeWithSpan,
-      bool namesInErrors = false}) {
+        AstNode? nodeWithSpan,
+        bool namesInErrors = false}) async {
     var url = stylesheet.span.sourceUrl;
 
     var alreadyLoaded = _modules[url];
@@ -587,9 +589,9 @@ class EvaluateVisitor
           currentConfiguration is ExplicitConfiguration) {
         var message = namesInErrors
             ? "${p.prettyUri(url)} was already loaded, so it can't be "
-                "configured using \"with\"."
+            "configured using \"with\"."
             : "This module was already loaded, so it can't be configured using "
-                "\"with\".";
+            "\"with\".";
 
         var existingSpan = _moduleNodes[url]?.span;
         var configurationSpan = configuration == null
@@ -608,11 +610,11 @@ class EvaluateVisitor
       return alreadyLoaded;
     }
 
-    var environment = Environment();
+    var environment = AsyncEnvironment();
     late CssStylesheet css;
-    late Map<Module<Callable>, List<CssComment>>? preModuleComments;
+    late Map<Module, List<CssComment>>? preModuleComments;
     var extensionStore = ExtensionStore();
-    _withEnvironment(environment, () {
+    await _withEnvironment(environment, () async {
       var oldImporter = _importer;
       var oldStylesheet = __stylesheet;
       var oldRoot = __root;
@@ -643,7 +645,7 @@ class EvaluateVisitor
       _inKeyframes = false;
       if (configuration != null) _configuration = configuration;
 
-      visitStylesheet(stylesheet);
+      await visitStylesheet(stylesheet);
       css = _outOfOrderImports == null
           ? root
           : CssStylesheet(_addOutOfOrderImports(), stylesheet.span);
@@ -832,15 +834,15 @@ class EvaluateVisitor
   // ## Statements
 
   @override
-  Value? visitStylesheet(Stylesheet node) {
+  Future<Value?> visitStylesheet(Stylesheet node) async {
     for (var child in node.children) {
-      child.accept(this);
+      await child.accept(this);
     }
     return null;
   }
 
   @override
-  Value? visitAtRootRule(AtRootRule node) {
+  Future<Value?> visitAtRootRule(AtRootRule node) async {
     // var query = AtRootQuery.defaultQuery;
     // var unparsedQuery = node.query;
     // if (unparsedQuery != null) {
@@ -1001,11 +1003,11 @@ class EvaluateVisitor
   // }
 
   @override
-  Value visitContentBlock(ContentBlock node) => throw UnsupportedError(
+  Future<Value> visitContentBlock(ContentBlock node) => throw UnsupportedError(
       "Evaluation handles @include and its content block together.");
 
   @override
-  Value? visitContentRule(ContentRule node) {
+  Future<Value?> visitContentRule(ContentRule node) async {
     // var content = _environment.content;
     // if (content == null) return null;
     //
@@ -1020,15 +1022,15 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitDebugRule(DebugRule node) {
-    var value = node.expression.accept(this);
+  Future<Value?> visitDebugRule(DebugRule node) async {
+    var value = await node.expression.accept(this);
     _logger.debug(
         value is SassString ? value.text : value.toString(), node.span);
     return null;
   }
 
   @override
-  Value? visitDeclaration(Declaration node) {
+  Future<Value?> visitDeclaration(Declaration node) async {
     // if (_styleRule == null && !_inUnknownAtRule && !_inKeyframes) {
     //   throw _exception(
     //       "Declarations may only be used within style rules.", node.span);
@@ -1078,14 +1080,14 @@ class EvaluateVisitor
   // bool _isEmptyList(Value value) => value.asList.isEmpty;
 
   @override
-  Value? visitEachRule(EachRule node) {
-    var list = node.list.accept(this);
+  Future<Value?> visitEachRule(EachRule node) async {
+    var list = await node.list.accept(this);
     var nodeWithSpan = _expressionNode(node.list);
     var setVariables = node.variables.length == 1
         ? (Value value) => _environment.setLocalVariable(node.variables.first,
-            _withoutSlash(value, nodeWithSpan), nodeWithSpan)
+        _withoutSlash(value, nodeWithSpan), nodeWithSpan)
         : (Value value) =>
-            _setMultipleVariables(node.variables, value, nodeWithSpan);
+        _setMultipleVariables(node.variables, value, nodeWithSpan);
     return _environment.scope(() {
       return _handleReturn<Value>(list.asList, (element) {
         setVariables(element);
@@ -1111,12 +1113,13 @@ class EvaluateVisitor
   }
 
   @override
-  Value visitErrorRule(ErrorRule node) {
-    throw _exception(node.expression.accept(this).toString(), node.span);
+  Future<Value> visitErrorRule(ErrorRule node) async {
+    throw _exception(
+        (await node.expression.accept(this)).toString(), node.span);
   }
 
   @override
-  Value? visitExtendRule(ExtendRule node) {
+  Future<Value?> visitExtendRule(ExtendRule node) async {
     // var styleRule = _styleRule;
     // if (styleRule == null || _declarationName != null) {
     //   throw _exception(
@@ -1166,7 +1169,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitAtRule(AtRule node) {
+  Future<Value?> visitAtRule(AtRule node) async {
     // // NOTE: this logic is largely duplicated in [visitCssAtRule]. Most changes
     // // here should be mirrored there.
     //
@@ -1225,16 +1228,16 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitForRule(ForRule node) {
-    var fromNumber = _addExceptionSpan(
-        node.from, () => node.from.accept(this).assertNumber());
-    var toNumber =
-        _addExceptionSpan(node.to, () => node.to.accept(this).assertNumber());
+  Future<Value?> visitForRule(ForRule node) async {
+    var fromNumber = await _addExceptionSpanAsync(
+        node.from, () async => (await node.from.accept(this)).assertNumber());
+    var toNumber = await _addExceptionSpanAsync(
+        node.to, () async => (await node.to.accept(this)).assertNumber());
 
     var from = _addExceptionSpan(node.from, () => fromNumber.assertInt());
     var to = _addExceptionSpan(
         node.to,
-        () => toNumber
+            () => toNumber
             .coerce(fromNumber.numeratorUnits, fromNumber.denominatorUnits)
             .assertInt());
 
@@ -1242,7 +1245,7 @@ class EvaluateVisitor
     if (!node.isExclusive) to += direction;
     if (from == to) return null;
 
-    return _environment.scope(() {
+    return _environment.scope(() async {
       var nodeWithSpan = _expressionNode(node.from);
       for (var i = from; i != to; i += direction) {
         _environment.setLocalVariable(
@@ -1251,7 +1254,7 @@ class EvaluateVisitor
                 numeratorUnits: fromNumber.numeratorUnits,
                 denominatorUnits: fromNumber.denominatorUnits),
             nodeWithSpan);
-        var result = _handleReturn<Statement>(
+        var result = await _handleReturn<Statement>(
             node.children, (child) => child.accept(this));
         if (result != null) return result;
       }
@@ -1260,15 +1263,15 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitForwardRule(ForwardRule node) {
+  Future<Value?> visitForwardRule(ForwardRule node) async {
     var oldConfiguration = _configuration;
     var adjustedConfiguration = oldConfiguration.throughForward(node);
 
     if (node.configuration.isNotEmpty) {
       var newConfiguration =
-          _addForwardConfiguration(adjustedConfiguration, node);
+      await _addForwardConfiguration(adjustedConfiguration, node);
 
-      _loadModule(node.url, "@forward", node, (module, firstLoad) {
+      await _loadModule(node.url, "@forward", node, (module, firstLoad) {
         if (firstLoad) _registerCommentsForModule(module);
         _environment.forwardModule(module, node);
       }, configuration: newConfiguration);
@@ -1293,7 +1296,7 @@ class EvaluateVisitor
       _assertConfigurationIsEmpty(newConfiguration);
     } else {
       _configuration = adjustedConfiguration;
-      _loadModule(node.url, "@forward", node, (module, firstLoad) {
+      await _loadModule(node.url, "@forward", node, (module, firstLoad) {
         if (firstLoad) _registerCommentsForModule(module);
         _environment.forwardModule(module, node);
       });
@@ -1305,8 +1308,8 @@ class EvaluateVisitor
 
   /// Updates [configuration] to include [node]'s configuration and returns the
   /// result.
-  Configuration _addForwardConfiguration(
-      Configuration configuration, ForwardRule node) {
+  Future<Configuration> _addForwardConfiguration(
+      Configuration configuration, ForwardRule node) async {
     var newValues = Map.of(configuration.values);
     for (var variable in node.configuration) {
       if (variable.isGuarded) {
@@ -1319,7 +1322,8 @@ class EvaluateVisitor
 
       var variableNodeWithSpan = _expressionNode(variable.expression);
       newValues[variable.name] = ConfiguredValue.explicit(
-          _withoutSlash(variable.expression.accept(this), variableNodeWithSpan),
+          _withoutSlash(
+              await variable.expression.accept(this), variableNodeWithSpan),
           variable.span,
           variableNodeWithSpan);
     }
@@ -1333,7 +1337,7 @@ class EvaluateVisitor
 
   /// Adds any comments in [_root.children] to [_preModuleComments] for
   /// [module].
-  void _registerCommentsForModule(Module<Callable> module) {
+  void _registerCommentsForModule(Module module) {
     // If we're not in a module (for example, we're evaluating a line of code
     // for the repl), there's nothing to register comments for.
     if (__root == null) return;
@@ -1375,63 +1379,63 @@ class EvaluateVisitor
     throw _exception(
         nameInError
             ? "\$${entry.key} was not declared with !default in the @used "
-                "module."
+            "module."
             : "This variable was not declared with !default in the @used "
-                "module.",
+            "module.",
         entry.value.configurationSpan);
   }
 
   @override
-  Value? visitFunctionRule(FunctionRule node) {
+  Future<Value?> visitFunctionRule(FunctionRule node) async {
     _environment.setFunction(UserDefinedCallable(node, _environment.closure(),
         inDependency: _inDependency));
     return null;
   }
 
   @override
-  Value? visitIfRule(IfRule node) {
+  Future<Value?> visitIfRule(IfRule node) async {
     IfRuleClause? clause = node.lastClause;
     for (var clauseToCheck in node.clauses) {
-      if (clauseToCheck.expression.accept(this).isTruthy) {
+      if ((await clauseToCheck.expression.accept(this)).isTruthy) {
         clause = clauseToCheck;
         break;
       }
     }
     if (clause == null) return null;
 
-    return _environment.scope(
-        () => _handleReturn<Statement>(
+    return await _environment.scope(
+            () => _handleReturn<Statement>(
             clause!.children, // dart-lang/sdk#45348
-            (child) => child.accept(this)),
+                (child) => child.accept(this)),
         semiGlobal: true,
         when: clause.hasDeclarations);
   }
 
   @override
-  Value? visitImportRule(ImportRule node) {
+  Future<Value?> visitImportRule(ImportRule node) async {
     for (var import in node.imports) {
       if (import is DynamicImport) {
-        _visitDynamicImport(import);
+        await _visitDynamicImport(import);
       } else {
-        _visitStaticImport(import as StaticImport);
+        await _visitStaticImport(import as StaticImport);
       }
     }
     return null;
   }
 
   /// Adds the stylesheet imported by [import] to the current document.
-  void _visitDynamicImport(DynamicImport import) {
-    return _withStackFrame("@import", import, () {
+  Future<void> _visitDynamicImport(DynamicImport import) {
+    return _withStackFrame("@import", import, () async {
       var result =
-          _loadStylesheet(import.urlString, import.span, forImport: true);
+      await _loadStylesheet(import.urlString, import.span, forImport: true);
       var stylesheet = result.stylesheet;
 
       var url = stylesheet.span.sourceUrl;
       if (url != null) {
         if (_activeModules.containsKey(url)) {
           throw _activeModules[url].andThen((previousLoad) =>
-                  _multiSpanException("This file is already being loaded.",
-                      "new load", {previousLoad.span: "original load"})) ??
+              _multiSpanException("This file is already being loaded.",
+                  "new load", {previousLoad.span: "original load"})) ??
               _exception("This file is already being loaded.");
         }
         _activeModules[url] = import;
@@ -1448,7 +1452,7 @@ class EvaluateVisitor
         _importer = result.importer;
         _stylesheet = stylesheet;
         _inDependency = result.isDependency;
-        visitStylesheet(stylesheet);
+        await visitStylesheet(stylesheet);
         _importer = oldImporter;
         _stylesheet = oldStylesheet;
         _inDependency = oldInDependency;
@@ -1467,7 +1471,7 @@ class EvaluateVisitor
 
       // late List<ModifiableCssNode> children;
       var environment = _environment.forImport();
-      _withEnvironment(environment, () {
+      await _withEnvironment(environment, () async {
         var oldImporter = _importer;
         var oldStylesheet = _stylesheet;
         var oldRoot = _root;
@@ -1492,7 +1496,7 @@ class EvaluateVisitor
           _configuration = environment.toImplicitConfiguration();
         }
 
-        visitStylesheet(stylesheet);
+        await visitStylesheet(stylesheet);
         // children = loadsUserDefinedModules ? _addOutOfOrderImports() : [];
 
         _importer = oldImporter;
@@ -1539,8 +1543,8 @@ class EvaluateVisitor
   ///
   /// This first tries loading [url] relative to [baseUrl], which defaults to
   /// `_stylesheet.span.sourceUrl`.
-  _LoadedStylesheet _loadStylesheet(String url, FileSpan span,
-      {Uri? baseUrl, bool forImport = false}) {
+  Future<_LoadedStylesheet> _loadStylesheet(String url, FileSpan span,
+      {Uri? baseUrl, bool forImport = false}) async {
     try {
       assert(_importSpan == null);
       _importSpan = span;
@@ -1549,7 +1553,7 @@ class EvaluateVisitor
       if (importCache != null) {
         var parsedUrl = Uri.parse(url);
         baseUrl ??= _stylesheet.span.sourceUrl;
-        var tuple = importCache.canonicalize(parsedUrl,
+        var tuple = await importCache.canonicalize(parsedUrl,
             baseImporter: _importer, baseUrl: baseUrl, forImport: forImport);
 
         if (tuple != null) {
@@ -1559,7 +1563,8 @@ class EvaluateVisitor
           _loadedUrls.add(tuple.item2);
 
           var isDependency = _inDependency || tuple.item1 != _importer;
-          var stylesheet = importCache.importCanonical(tuple.item1, tuple.item2,
+          var stylesheet = await importCache.importCanonical(
+              tuple.item1, tuple.item2,
               originalUrl: tuple.item3, quiet: _quietDeps && isDependency);
           if (stylesheet != null) {
             return _LoadedStylesheet(stylesheet,
@@ -1567,7 +1572,7 @@ class EvaluateVisitor
           }
         }
       } else {
-        var result = _importLikeNode(
+        var result = await _importLikeNode(
             url, baseUrl ?? _stylesheet.span.sourceUrl, forImport);
         if (result != null) {
           result.stylesheet.span.sourceUrl.andThen(_loadedUrls.add);
@@ -1602,15 +1607,15 @@ class EvaluateVisitor
   /// Imports a stylesheet using [_nodeImporter].
   ///
   /// Returns the [Stylesheet], or `null` if the import failed.
-  _LoadedStylesheet? _importLikeNode(
-      String originalUrl, Uri? previous, bool forImport) {
+  Future<_LoadedStylesheet?> _importLikeNode(
+      String originalUrl, Uri? previous, bool forImport) async {
     var result = _nodeImporter!.loadRelative(originalUrl, previous, forImport);
 
     bool isDependency;
     if (result != null) {
       isDependency = _inDependency;
     } else {
-      result = _nodeImporter!.load(originalUrl, previous, forImport);
+      result = await _nodeImporter!.loadAsync(originalUrl, previous, forImport);
       if (result == null) return null;
       isDependency = true;
     }
@@ -1627,14 +1632,14 @@ class EvaluateVisitor
   }
 
   /// Adds a CSS import for [import].
-  void _visitStaticImport(StaticImport import) {
+  Future<void> _visitStaticImport(StaticImport import) async {
     // NOTE: this logic is largely duplicated in [visitCssImport]. Most changes
     // here should be mirrored there.
 
     var node = ModifiableCssImport(
-        _interpolationToValue(import.url), import.span,
-        modifiers:
-            import.modifiers.andThen<CssValue<String>?>(_interpolationToValue));
+        await _interpolationToValue(import.url), import.span,
+        modifiers: await import.modifiers
+            .andThen<Future<CssValue<String>>?>(_interpolationToValue));
 
     if (_parent != _root) {
       _parent.addChild(node);
@@ -1647,7 +1652,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitIncludeRule(IncludeRule node) {
+  Future<Value?> visitIncludeRule(IncludeRule node) async {
     // var mixin = _addExceptionSpan(node,
     //         () => _environment.getMixin(node.name, namespace: node.namespace));
     // if (mixin == null) {
@@ -1693,14 +1698,14 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitMixinRule(MixinRule node) {
+  Future<Value?> visitMixinRule(MixinRule node) async {
     // _environment.setMixin(UserDefinedCallable(node, _environment.closure(),
     //     inDependency: _inDependency));
     return null;
   }
 
   @override
-  Value? visitLoudComment(LoudComment node) {
+  Future<Value?> visitLoudComment(LoudComment node) async {
     // // NOTE: this logic is largely duplicated in [visitCssComment]. Most changes
     // // here should be mirrored there.
     //
@@ -1717,7 +1722,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitMediaRule(MediaRule node) {
+  Future<Value?> visitMediaRule(MediaRule node) async {
     // // NOTE: this logic is largely duplicated in [visitCssMediaRule]. Most
     // // changes here should be mirrored there.
     //
@@ -1801,14 +1806,14 @@ class EvaluateVisitor
   // }
 
   @override
-  Value visitReturnRule(ReturnRule node) =>
-      _withoutSlash(node.expression.accept(this), node.expression);
+  Future<Value> visitReturnRule(ReturnRule node) async =>
+      _withoutSlash(await node.expression.accept(this), node.expression);
 
   @override
-  Value? visitSilentComment(SilentComment node) => null;
+  Future<Value?> visitSilentComment(SilentComment node) async => null;
 
   @override
-  Value? visitStyleRule(StyleRule node) {
+  Future<Value?> visitStyleRule(StyleRule node) async {
     // // NOTE: this logic is largely duplicated in [visitCssStyleRule]. Most
     // // changes here should be mirrored there.
     //
@@ -1918,7 +1923,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitSupportsRule(SupportsRule node) {
+  Future<Value?> visitSupportsRule(SupportsRule node) async {
     // // NOTE: this logic is largely duplicated in [visitCssSupportsRule]. Most
     // // changes here should be mirrored there.
     //
@@ -1957,28 +1962,28 @@ class EvaluateVisitor
   }
 
   /// Evaluates [condition] and converts it to a plain CSS string.
-  String _visitSupportsCondition(SupportsCondition condition) {
+  Future<String> _visitSupportsCondition(SupportsCondition condition) async {
     if (condition is SupportsOperation) {
-      return "${_parenthesize(condition.left, condition.operator)} "
+      return "${await _parenthesize(condition.left, condition.operator)} "
           "${condition.operator} "
-          "${_parenthesize(condition.right, condition.operator)}";
+          "${await _parenthesize(condition.right, condition.operator)}";
     } else if (condition is SupportsNegation) {
-      return "not ${_parenthesize(condition.condition)}";
+      return "not ${await _parenthesize(condition.condition)}";
     } else if (condition is SupportsInterpolation) {
-      return _evaluateToCss(condition.expression, quote: false);
+      return await _evaluateToCss(condition.expression, quote: false);
     } else if (condition is SupportsDeclaration) {
       var oldInSupportsDeclaration = _inSupportsDeclaration;
       _inSupportsDeclaration = true;
-      var result = "(${_evaluateToCss(condition.name)}:"
+      var result = "(${await _evaluateToCss(condition.name)}:"
           "${condition.isCustomProperty ? '' : ' '}"
-          "${_evaluateToCss(condition.value)})";
+          "${await _evaluateToCss(condition.value)})";
       _inSupportsDeclaration = oldInSupportsDeclaration;
       return result;
     } else if (condition is SupportsFunction) {
-      return "${_performInterpolation(condition.name)}("
-          "${_performInterpolation(condition.arguments)})";
+      return "${await _performInterpolation(condition.name)}("
+          "${await _performInterpolation(condition.arguments)})";
     } else if (condition is SupportsAnything) {
-      return "(${_performInterpolation(condition.contents)})";
+      return "(${await _performInterpolation(condition.contents)})";
     } else {
       throw ArgumentError(
           "Unknown supports condition type ${condition.runtimeType}.");
@@ -1991,18 +1996,19 @@ class EvaluateVisitor
   /// If [operator] is passed, it's the operator for the surrounding
   /// [SupportsOperation], and is used to determine whether parentheses are
   /// necessary if [condition] is also a [SupportsOperation].
-  String _parenthesize(SupportsCondition condition, [String? operator]) {
+  Future<String> _parenthesize(SupportsCondition condition,
+      [String? operator]) async {
     if ((condition is SupportsNegation) ||
         (condition is SupportsOperation &&
             (operator == null || operator != condition.operator))) {
-      return "(${_visitSupportsCondition(condition)})";
+      return "(${await _visitSupportsCondition(condition)})";
     } else {
-      return _visitSupportsCondition(condition);
+      return await _visitSupportsCondition(condition);
     }
   }
 
   @override
-  Value? visitVariableDeclaration(VariableDeclaration node) {
+  Future<Value?> visitVariableDeclaration(VariableDeclaration node) async {
     if (node.isGuarded) {
       if (node.namespace == null && _environment.atRoot) {
         var override = _configuration.remove(node.name);
@@ -2017,7 +2023,7 @@ class EvaluateVisitor
       }
 
       var value = _addExceptionSpan(node,
-          () => _environment.getVariable(node.name, namespace: node.namespace));
+              () => _environment.getVariable(node.name, namespace: node.namespace));
       if (value != null && value != sassNull) return null;
     }
 
@@ -2025,21 +2031,22 @@ class EvaluateVisitor
       _warn(
           _environment.atRoot
               ? "As of Dart Sass 2.0.0, !global assignments won't be able to "
-                  "declare new variables.\n"
-                  "\n"
-                  "Since this assignment is at the root of the stylesheet, the "
-                  "!global flag is\n"
-                  "unnecessary and can safely be removed."
+              "declare new variables.\n"
+              "\n"
+              "Since this assignment is at the root of the stylesheet, the "
+              "!global flag is\n"
+              "unnecessary and can safely be removed."
               : "As of Dart Sass 2.0.0, !global assignments won't be able to "
-                  "declare new variables.\n"
-                  "\n"
-                  "Recommendation: add `${node.originalName}: null` at the "
-                  "stylesheet root.",
+              "declare new variables.\n"
+              "\n"
+              "Recommendation: add `${node.originalName}: null` at the "
+              "stylesheet root.",
           node.span,
           Deprecation.newGlobal);
     }
 
-    var value = _withoutSlash(node.expression.accept(this), node.expression);
+    var value =
+    _withoutSlash(await node.expression.accept(this), node.expression);
     _addExceptionSpan(node, () {
       _environment.setVariable(
           node.name, value, _expressionNode(node.expression),
@@ -2049,7 +2056,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitUseRule(UseRule node) {
+  Future<Value?> visitUseRule(UseRule node) async {
     var configuration = const Configuration.empty();
     if (node.configuration.isNotEmpty) {
       var values = <String, ConfiguredValue>{};
@@ -2057,14 +2064,14 @@ class EvaluateVisitor
         var variableNodeWithSpan = _expressionNode(variable.expression);
         values[variable.name] = ConfiguredValue.explicit(
             _withoutSlash(
-                variable.expression.accept(this), variableNodeWithSpan),
+                await variable.expression.accept(this), variableNodeWithSpan),
             variable.span,
             variableNodeWithSpan);
       }
       configuration = ExplicitConfiguration(values, node);
     }
 
-    _loadModule(node.url, "@use", node, (module, firstLoad) {
+    await _loadModule(node.url, "@use", node, (module, firstLoad) {
       if (firstLoad) _registerCommentsForModule(module);
       _environment.addModule(module, node, namespace: node.namespace);
     }, configuration: configuration);
@@ -2074,8 +2081,9 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitWarnRule(WarnRule node) {
-    var value = _addExceptionSpan(node, () => node.expression.accept(this));
+  Future<Value?> visitWarnRule(WarnRule node) async {
+    var value =
+    await _addExceptionSpanAsync(node, () => node.expression.accept(this));
     _logger.warn(
         value is SassString ? value.text : _serialize(value, node.expression),
         trace: _stackTrace(node.span));
@@ -2083,10 +2091,10 @@ class EvaluateVisitor
   }
 
   @override
-  Value? visitWhileRule(WhileRule node) {
-    return _environment.scope(() {
-      while (node.condition.accept(this).isTruthy) {
-        var result = _handleReturn<Statement>(
+  Future<Value?> visitWhileRule(WhileRule node) {
+    return _environment.scope(() async {
+      while ((await node.condition.accept(this)).isTruthy) {
+        var result = await _handleReturn<Statement>(
             node.children, (child) => child.accept(this));
         if (result != null) return result;
       }
@@ -2097,58 +2105,58 @@ class EvaluateVisitor
   // ## Expressions
 
   @override
-  Value visitBinaryOperationExpression(BinaryOperationExpression node) {
-    return _addExceptionSpan(node, () {
-      var left = node.left.accept(this);
+  Future<Value> visitBinaryOperationExpression(BinaryOperationExpression node) {
+    return _addExceptionSpanAsync(node, () async {
+      var left = await node.left.accept(this);
       switch (node.operator) {
         case BinaryOperator.singleEquals:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.singleEquals(right);
 
         case BinaryOperator.or:
-          return left.isTruthy ? left : node.right.accept(this);
+          return left.isTruthy ? left : await node.right.accept(this);
 
         case BinaryOperator.and:
-          return left.isTruthy ? node.right.accept(this) : left;
+          return left.isTruthy ? await node.right.accept(this) : left;
 
         case BinaryOperator.equals:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return SassBoolean(left == right);
 
         case BinaryOperator.notEquals:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return SassBoolean(left != right);
 
         case BinaryOperator.greaterThan:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.greaterThan(right);
 
         case BinaryOperator.greaterThanOrEquals:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.greaterThanOrEquals(right);
 
         case BinaryOperator.lessThan:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.lessThan(right);
 
         case BinaryOperator.lessThanOrEquals:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.lessThanOrEquals(right);
 
         case BinaryOperator.plus:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.plus(right);
 
         case BinaryOperator.minus:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.minus(right);
 
         case BinaryOperator.times:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.times(right);
 
         case BinaryOperator.dividedBy:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           var result = left.dividedBy(right);
           if (node.allowsSlash && left is SassNumber && right is SassNumber) {
             return (result as SassNumber).withSlash(left, right);
@@ -2168,13 +2176,13 @@ class EvaluateVisitor
 
               _warn(
                   "Using / for division outside of calc() is deprecated "
-                  "and will be removed in Dart Sass 2.0.0.\n"
-                  "\n"
-                  "Recommendation: ${recommendation(node)} or "
-                  "${expressionToCalc(node)}\n"
-                  "\n"
-                  "More info and automated migrator: "
-                  "https://sass-lang.com/d/slash-div",
+                      "and will be removed in Dart Sass 2.0.0.\n"
+                      "\n"
+                      "Recommendation: ${recommendation(node)} or "
+                      "${expressionToCalc(node)}\n"
+                      "\n"
+                      "More info and automated migrator: "
+                      "https://sass-lang.com/d/slash-div",
                   node.span,
                   Deprecation.slashDiv);
             }
@@ -2183,7 +2191,7 @@ class EvaluateVisitor
           }
 
         case BinaryOperator.modulo:
-          var right = node.right.accept(this);
+          var right = await node.right.accept(this);
           return left.modulo(right);
 
         default:
@@ -2193,19 +2201,20 @@ class EvaluateVisitor
   }
 
   @override
-  Value visitValueExpression(ValueExpression node) => node.value;
+  Future<Value> visitValueExpression(ValueExpression node) async => node.value;
 
   @override
-  Value visitVariableExpression(VariableExpression node) {
+  Future<Value> visitVariableExpression(VariableExpression node) async {
     var result = _addExceptionSpan(node,
-        () => _environment.getVariable(node.name, namespace: node.namespace));
+            () => _environment.getVariable(node.name, namespace: node.namespace));
     if (result != null) return result;
     throw _exception("Undefined variable.", node.span);
   }
 
   @override
-  Value visitUnaryOperationExpression(UnaryOperationExpression node) {
-    var operand = node.operand.accept(this);
+  Future<Value> visitUnaryOperationExpression(
+      UnaryOperationExpression node) async {
+    var operand = await node.operand.accept(this);
     return _addExceptionSpan(node, () {
       switch (node.operator) {
         case UnaryOperator.plus:
@@ -2223,12 +2232,12 @@ class EvaluateVisitor
   }
 
   @override
-  SassBoolean visitBooleanExpression(BooleanExpression node) =>
+  Future<SassBoolean> visitBooleanExpression(BooleanExpression node) async =>
       SassBoolean(node.value);
 
   @override
-  Value visitIfExpression(IfExpression node) {
-    var pair = _evaluateMacroArguments(node);
+  Future<Value> visitIfExpression(IfExpression node) async {
+    var pair = await _evaluateMacroArguments(node);
     var positional = pair.item1;
     var named = pair.item2;
 
@@ -2239,26 +2248,26 @@ class EvaluateVisitor
     var ifTrue = positional.length > 1 ? positional[1] : named["if-true"]!;
     var ifFalse = positional.length > 2 ? positional[2] : named["if-false"]!;
 
-    var result = condition.accept(this).isTruthy ? ifTrue : ifFalse;
-    return _withoutSlash(result.accept(this), _expressionNode(result));
+    var result = (await condition.accept(this)).isTruthy ? ifTrue : ifFalse;
+    return _withoutSlash(await result.accept(this), _expressionNode(result));
   }
 
   @override
-  Value visitNullExpression(NullExpression node) => sassNull;
+  Future<Value> visitNullExpression(NullExpression node) async => sassNull;
 
   @override
-  SassNumber visitNumberExpression(NumberExpression node) =>
+  Future<SassNumber> visitNumberExpression(NumberExpression node) async =>
       SassNumber(node.value, node.unit);
 
   @override
-  Value visitParenthesizedExpression(ParenthesizedExpression node) =>
+  Future<Value> visitParenthesizedExpression(ParenthesizedExpression node) =>
       node.expression.accept(this);
 
   @override
-  Value visitCalculationExpression(CalculationExpression node) {
+  Future<Value> visitCalculationExpression(CalculationExpression node) async {
     var arguments = [
       for (var argument in node.arguments)
-        _visitCalculationValue(argument,
+        await _visitCalculationValue(argument,
             inMinMax: node.name == 'min' || node.name == 'max')
     ];
     if (_inSupportsDeclaration) {
@@ -2333,14 +2342,15 @@ class EvaluateVisitor
   /// If [inMinMax] is `true`, this allows unitless numbers to be added and
   /// subtracted with numbers with units, for backwards-compatibility with the
   /// old global `min()` and `max()` functions.
-  Object _visitCalculationValue(Expression node, {required bool inMinMax}) {
+  Future<Object> _visitCalculationValue(Expression node,
+      {required bool inMinMax}) async {
     if (node is ParenthesizedExpression) {
       var inner = node.expression;
-      var result = _visitCalculationValue(inner, inMinMax: inMinMax);
+      var result = await _visitCalculationValue(inner, inMinMax: inMinMax);
       return inner is FunctionExpression &&
-              inner.name.toLowerCase() == 'var' &&
-              result is SassString &&
-              !result.hasQuotes
+          inner.name.toLowerCase() == 'var' &&
+          result is SassString &&
+          !result.hasQuotes
           ? SassString('(${result.text})', quotes: false)
           : result;
     } else if (node is StringExpression) {
@@ -2350,7 +2360,7 @@ class EvaluateVisitor
       // Otherwise, create an UnquotedString. The main difference is that
       // UnquotedStrings don't get extra defensive parentheses.
       if (text == null) {
-        return CalculationInterpolation(_performInterpolation(node.text));
+        return CalculationInterpolation(await _performInterpolation(node.text));
       }
 
       switch (text.toLowerCase()) {
@@ -2368,12 +2378,12 @@ class EvaluateVisitor
           return SassString(text, quotes: false);
       }
     } else if (node is BinaryOperationExpression) {
-      return _addExceptionSpan(
+      return await _addExceptionSpanAsync(
           node,
-          () => SassCalculation.operateInternal(
+              () async => SassCalculation.operateInternal(
               _binaryOperatorToCalculationOperator(node.operator),
-              _visitCalculationValue(node.left, inMinMax: inMinMax),
-              _visitCalculationValue(node.right, inMinMax: inMinMax),
+              await _visitCalculationValue(node.left, inMinMax: inMinMax),
+              await _visitCalculationValue(node.right, inMinMax: inMinMax),
               inMinMax: inMinMax,
               simplify: !_inSupportsDeclaration));
     } else {
@@ -2382,7 +2392,7 @@ class EvaluateVisitor
           node is VariableExpression ||
           node is FunctionExpression ||
           node is IfExpression);
-      var result = node.accept(this);
+      var result = await node.accept(this);
       if (result is SassNumber || result is SassCalculation) return result;
       if (result is SassString && !result.hasQuotes) return result;
       throw _exception(
@@ -2408,21 +2418,23 @@ class EvaluateVisitor
   }
 
   @override
-  SassColor visitColorExpression(ColorExpression node) => node.value;
+  Future<SassColor> visitColorExpression(ColorExpression node) async =>
+      node.value;
 
   @override
-  SassList visitListExpression(ListExpression node) => SassList(
-      node.contents.map((Expression expression) => expression.accept(this)),
+  Future<SassList> visitListExpression(ListExpression node) async => SassList(
+      await mapAsync(
+          node.contents, (Expression expression) => expression.accept(this)),
       node.separator,
       brackets: node.hasBrackets);
 
   @override
-  SassMap visitMapExpression(MapExpression node) {
+  Future<SassMap> visitMapExpression(MapExpression node) async {
     var map = <Value, Value>{};
     var keyNodes = <Value, AstNode>{};
     for (var pair in node.pairs) {
-      var keyValue = pair.item1.accept(this);
-      var valueValue = pair.item2.accept(this);
+      var keyValue = await pair.item1.accept(this);
+      var valueValue = await pair.item2.accept(this);
 
       var oldValue = map[keyValue];
       if (oldValue != null) {
@@ -2441,7 +2453,7 @@ class EvaluateVisitor
   }
 
   @override
-  Value visitFunctionExpression(FunctionExpression node) {
+  Future<Value> visitFunctionExpression(FunctionExpression node) async {
     var function = _addExceptionSpan(
         node, () => _getFunction(node.name, namespace: node.namespace));
 
@@ -2455,19 +2467,19 @@ class EvaluateVisitor
 
     var oldInFunction = _inFunction;
     _inFunction = true;
-    var result = _addErrorSpan(
+    var result = await _addErrorSpan(
         node, () => _runFunctionCallable(node.arguments, function, node));
     _inFunction = oldInFunction;
     return result;
   }
 
   @override
-  Value visitInterpolatedFunctionExpression(
-      InterpolatedFunctionExpression node) {
-    var function = PlainCssCallable(_performInterpolation(node.name));
+  Future<Value> visitInterpolatedFunctionExpression(
+      InterpolatedFunctionExpression node) async {
+    var function = PlainCssCallable(await _performInterpolation(node.name));
     var oldInFunction = _inFunction;
     _inFunction = true;
-    var result = _addErrorSpan(
+    var result = await _addErrorSpan(
         node, () => _runFunctionCallable(node.arguments, function, node));
     _inFunction = oldInFunction;
     return result;
@@ -2475,7 +2487,7 @@ class EvaluateVisitor
 
   /// Like `_environment.getFunction`, but also returns built-in
   /// globally-available functions.
-  Callable? _getFunction(String name, {String? namespace}) {
+  AsyncCallable? _getFunction(String name, {String? namespace}) {
     var local = _environment.getFunction(name, namespace: namespace);
     if (local != null || namespace != null) return local;
     return _builtInFunctions[name];
@@ -2483,42 +2495,43 @@ class EvaluateVisitor
 
   /// Evaluates the arguments in [arguments] as applied to [callable], and
   /// invokes [run] in a scope with those arguments defined.
-  V _runUserDefinedCallable<V extends Value?>(
+  Future<V> _runUserDefinedCallable<V extends Value?>(
       ArgumentInvocation arguments,
-      UserDefinedCallable<Environment> callable,
+      UserDefinedCallable<AsyncEnvironment> callable,
       AstNode nodeWithSpan,
-      V Function() run) {
+      Future<V> Function() run) async {
     // TODO(nweiz): Set [trackSpans] to `null` once we're no longer emitting
     // deprecation warnings for /-as-division.
-    var evaluated = _evaluateArguments(arguments);
+    var evaluated = await _evaluateArguments(arguments);
 
     var name = callable.name;
     if (name != "@content") name += "()";
 
     var oldCallable = _currentCallable;
     _currentCallable = callable;
-    var result = _withStackFrame(name, nodeWithSpan, () {
+    var result = await _withStackFrame(name, nodeWithSpan, () {
       // Add an extra closure() call so that modifications to the environment
       // don't affect the underlying environment closure.
       return _withEnvironment(callable.environment.closure(), () {
-        return _environment.scope(() {
+        return _environment.scope(() async {
           _verifyArguments(evaluated.positional.length, evaluated.named,
               callable.declaration.arguments, nodeWithSpan);
 
           var declaredArguments = callable.declaration.arguments.arguments;
           var minLength =
-              math.min(evaluated.positional.length, declaredArguments.length);
+          math.min(evaluated.positional.length, declaredArguments.length);
           for (var i = 0; i < minLength; i++) {
             _environment.setLocalVariable(declaredArguments[i].name,
                 evaluated.positional[i], evaluated.positionalNodes[i]);
           }
 
           for (var i = evaluated.positional.length;
-              i < declaredArguments.length;
-              i++) {
+          i < declaredArguments.length;
+          i++) {
             var argument = declaredArguments[i];
             var value = evaluated.named.remove(argument.name) ??
-                _withoutSlash(argument.defaultValue!.accept<Value>(this),
+                _withoutSlash(
+                    await argument.defaultValue!.accept<Future<Value>>(this),
                     _expressionNode(argument.defaultValue!));
             _environment.setLocalVariable(
                 argument.name,
@@ -2543,7 +2556,7 @@ class EvaluateVisitor
                 restArgument, argumentList, nodeWithSpan);
           }
 
-          var result = run();
+          var result = await run();
 
           if (argumentList == null) return result;
           if (evaluated.named.isEmpty) return result;
@@ -2551,7 +2564,7 @@ class EvaluateVisitor
 
           var argumentWord = pluralize('argument', evaluated.named.keys.length);
           var argumentNames =
-              toSentence(evaluated.named.keys.map((name) => "\$$name"), 'or');
+          toSentence(evaluated.named.keys.map((name) => "\$$name"), 'or');
           throw MultiSpanSassRuntimeException(
               "No $argumentWord named $argumentNames.",
               nodeWithSpan.span,
@@ -2566,21 +2579,23 @@ class EvaluateVisitor
   }
 
   /// Evaluates [arguments] as applied to [callable].
-  Value _runFunctionCallable(
-      ArgumentInvocation arguments, Callable? callable, AstNode nodeWithSpan) {
-    if (callable is BuiltInCallable) {
+  Future<Value> _runFunctionCallable(ArgumentInvocation arguments,
+      AsyncCallable? callable, AstNode nodeWithSpan) async {
+    if (callable is AsyncBuiltInCallable) {
       return _withoutSlash(
-          _runBuiltInCallable(arguments, callable, nodeWithSpan), nodeWithSpan);
-    } else if (callable is UserDefinedCallable<Environment>) {
-      return _runUserDefinedCallable(arguments, callable, nodeWithSpan, () {
-        for (var statement in callable.declaration.children) {
-          var returnValue = statement.accept(this);
-          if (returnValue is Value) return returnValue;
-        }
+          await _runBuiltInCallable(arguments, callable, nodeWithSpan),
+          nodeWithSpan);
+    } else if (callable is UserDefinedCallable<AsyncEnvironment>) {
+      return await _runUserDefinedCallable(arguments, callable, nodeWithSpan,
+              () async {
+            for (var statement in callable.declaration.children) {
+              var returnValue = await statement.accept(this);
+              if (returnValue is Value) return returnValue;
+            }
 
-        throw _exception(
-            "Function finished without @return.", callable.declaration.span);
-      });
+            throw _exception(
+                "Function finished without @return.", callable.declaration.span);
+          });
     } else if (callable is PlainCssCallable) {
       if (arguments.named.isNotEmpty || arguments.keywordRest != null) {
         throw _exception("Plain CSS functions don't support keyword arguments.",
@@ -2597,12 +2612,12 @@ class EvaluateVisitor
             buffer.write(", ");
           }
 
-          buffer.write(_evaluateToCss(argument));
+          buffer.write(await _evaluateToCss(argument));
         }
 
         var restArg = arguments.rest;
         if (restArg != null) {
-          var rest = restArg.accept(this);
+          var rest = await restArg.accept(this);
           if (!first) buffer.write(", ");
           buffer.write(_serialize(rest, restArg));
         }
@@ -2625,9 +2640,9 @@ class EvaluateVisitor
 
   /// Evaluates [invocation] as applied to [callable], and invokes [callable]'s
   /// body.
-  Value _runBuiltInCallable(ArgumentInvocation arguments,
-      BuiltInCallable callable, AstNode nodeWithSpan) {
-    var evaluated = _evaluateArguments(arguments);
+  Future<Value> _runBuiltInCallable(ArgumentInvocation arguments,
+      AsyncBuiltInCallable callable, AstNode nodeWithSpan) async {
+    var evaluated = await _evaluateArguments(arguments);
 
     var oldCallableNode = _callableNode;
     _callableNode = nodeWithSpan;
@@ -2637,16 +2652,16 @@ class EvaluateVisitor
     var overload = tuple.item1;
     var callback = tuple.item2;
     _addExceptionSpan(nodeWithSpan,
-        () => overload.verify(evaluated.positional.length, namedSet));
+            () => overload.verify(evaluated.positional.length, namedSet));
 
     var declaredArguments = overload.arguments;
     for (var i = evaluated.positional.length;
-        i < declaredArguments.length;
-        i++) {
+    i < declaredArguments.length;
+    i++) {
       var argument = declaredArguments[i];
       evaluated.positional.add(evaluated.named.remove(argument.name) ??
-          _withoutSlash(
-              argument.defaultValue!.accept(this), argument.defaultValue!));
+          _withoutSlash(await argument.defaultValue!.accept(this),
+              argument.defaultValue!));
     }
 
     SassArgumentList? argumentList;
@@ -2669,8 +2684,8 @@ class EvaluateVisitor
 
     Value result;
     try {
-      result =
-          _addExceptionSpan(nodeWithSpan, () => callback(evaluated.positional));
+      result = await _addExceptionSpanAsync(
+          nodeWithSpan, () => callback(evaluated.positional));
     } on SassException {
       rethrow;
     } catch (error, stackTrace) {
@@ -2698,7 +2713,8 @@ class EvaluateVisitor
   }
 
   /// Returns the evaluated values of the given [arguments].
-  _ArgumentResults _evaluateArguments(ArgumentInvocation arguments) {
+  Future<_ArgumentResults> _evaluateArguments(
+      ArgumentInvocation arguments) async {
     // TODO(nweiz): This used to avoid tracking source spans for arguments if
     // [_sourceMap]s was false or it was being called from
     // [_runBuiltInCallable]. We always have to track them now to produce better
@@ -2709,7 +2725,7 @@ class EvaluateVisitor
     var positionalNodes = <AstNode>[];
     for (var expression in arguments.positional) {
       var nodeForSpan = _expressionNode(expression);
-      positional.add(_withoutSlash(expression.accept(this), nodeForSpan));
+      positional.add(_withoutSlash(await expression.accept(this), nodeForSpan));
       positionalNodes.add(nodeForSpan);
     }
 
@@ -2717,7 +2733,8 @@ class EvaluateVisitor
     var namedNodes = <String, AstNode>{};
     for (var entry in arguments.named.entries) {
       var nodeForSpan = _expressionNode(entry.value);
-      named[entry.key] = _withoutSlash(entry.value.accept(this), nodeForSpan);
+      named[entry.key] =
+          _withoutSlash(await entry.value.accept(this), nodeForSpan);
       namedNodes[entry.key] = nodeForSpan;
     }
 
@@ -2727,7 +2744,7 @@ class EvaluateVisitor
           ListSeparator.undecided);
     }
 
-    var rest = restArgs.accept(this);
+    var rest = await restArgs.accept(this);
     var restNodeForSpan = _expressionNode(restArgs);
     var separator = ListSeparator.undecided;
     if (rest is SassMap) {
@@ -2759,7 +2776,7 @@ class EvaluateVisitor
           positional, positionalNodes, named, namedNodes, separator);
     }
 
-    var keywordRest = keywordRestArgs.accept(this);
+    var keywordRest = await keywordRestArgs.accept(this);
     var keywordRestNodeForSpan = _expressionNode(keywordRestArgs);
     if (keywordRest is SassMap) {
       _addRestMap(named, keywordRest, keywordRestArgs, (value) => value);
@@ -2781,8 +2798,8 @@ class EvaluateVisitor
   ///
   /// Returns the arguments as expressions so that they can be lazily evaluated
   /// for macros such as `if()`.
-  Tuple2<List<Expression>, Map<String, Expression>> _evaluateMacroArguments(
-      CallableInvocation invocation) {
+  Future<Tuple2<List<Expression>, Map<String, Expression>>>
+  _evaluateMacroArguments(CallableInvocation invocation) async {
     var restArgs_ = invocation.arguments.rest;
     if (restArgs_ == null) {
       return Tuple2(
@@ -2792,11 +2809,11 @@ class EvaluateVisitor
 
     var positional = invocation.arguments.positional.toList();
     var named = Map.of(invocation.arguments.named);
-    var rest = restArgs.accept(this);
+    var rest = await restArgs.accept(this);
     var restNodeForSpan = _expressionNode(restArgs);
     if (rest is SassMap) {
       _addRestMap(named, rest, invocation,
-          (value) => ValueExpression(value, restArgs.span));
+              (value) => ValueExpression(value, restArgs.span));
     } else if (rest is SassList) {
       positional.addAll(rest.asList.map((value) => ValueExpression(
           _withoutSlash(value, restNodeForSpan), restArgs.span)));
@@ -2815,14 +2832,14 @@ class EvaluateVisitor
     if (keywordRestArgs_ == null) return Tuple2(positional, named);
     var keywordRestArgs = keywordRestArgs_; // dart-lang/sdk#45348
 
-    var keywordRest = keywordRestArgs.accept(this);
+    var keywordRest = await keywordRestArgs.accept(this);
     var keywordRestNodeForSpan = _expressionNode(keywordRestArgs);
     if (keywordRest is SassMap) {
       _addRestMap(
           named,
           keywordRest,
           invocation,
-          (value) => ValueExpression(
+              (value) => ValueExpression(
               _withoutSlash(value, keywordRestNodeForSpan),
               keywordRestArgs.span));
       return Tuple2(positional, named);
@@ -2853,7 +2870,7 @@ class EvaluateVisitor
       } else {
         throw _exception(
             "Variable keyword argument map must have string keys.\n"
-            "$key is not a string in $map.",
+                "$key is not a string in $map.",
             nodeWithSpan.span);
       }
     });
@@ -2862,37 +2879,40 @@ class EvaluateVisitor
   /// Throws a [SassRuntimeException] if [positional] and [named] aren't valid
   /// when applied to [arguments].
   void _verifyArguments(int positional, Map<String, dynamic> named,
-          ArgumentDeclaration arguments, AstNode nodeWithSpan) =>
+      ArgumentDeclaration arguments, AstNode nodeWithSpan) =>
       _addExceptionSpan(
           nodeWithSpan, () => arguments.verify(positional, MapKeySet(named)));
 
   @override
-  Value visitSelectorExpression(SelectorExpression node) =>
+  Future<Value> visitSelectorExpression(SelectorExpression node) async =>
       _styleRuleIgnoringAtRoot?.originalSelector.asSassList ?? sassNull;
 
   @override
-  SassString visitStringExpression(StringExpression node) {
+  Future<SassString> visitStringExpression(StringExpression node) async {
     // Don't use [performInterpolation] here because we need to get the raw text
     // from strings, rather than the semantic value.
     var oldInSupportsDeclaration = _inSupportsDeclaration;
     _inSupportsDeclaration = false;
     var result = SassString(
-        node.text.contents.map((value) {
+        (await mapAsync(node.text.contents, (value) async {
           if (value is String) return value;
           var expression = value as Expression;
-          var result = expression.accept(this);
+          var result = await expression.accept(this);
           return result is SassString
               ? result.text
               : _serialize(result, expression, quote: false);
-        }).join(),
+        }))
+            .join(),
         quotes: node.hasQuotes);
     _inSupportsDeclaration = oldInSupportsDeclaration;
     return result;
   }
 
   @override
-  SassString visitSupportsExpression(SupportsExpression expression) =>
-      SassString(_visitSupportsCondition(expression.condition), quotes: false);
+  Future<SassString> visitSupportsExpression(
+      SupportsExpression expression) async =>
+      SassString(await _visitSupportsCondition(expression.condition),
+          quotes: false);
 
   // ## Utilities
 
@@ -2900,19 +2920,21 @@ class EvaluateVisitor
   ///
   /// Returns the value returned by [callback], or `null` if it only ever
   /// returned `null`.
-  Value? _handleReturn<T>(List<T> list, Value? Function(T value) callback) {
+  Future<Value?> _handleReturn<T>(
+      List<T> list, Future<Value?> Function(T value) callback) async {
     for (var value in list) {
-      var result = callback(value);
+      var result = await callback(value);
       if (result != null) return result;
     }
     return null;
   }
 
   /// Runs [callback] with [environment] as the current environment.
-  T _withEnvironment<T>(Environment environment, T Function() callback) {
+  Future<T> _withEnvironment<T>(
+      AsyncEnvironment environment, Future<T> Function() callback) async {
     var oldEnvironment = _environment;
     _environment = environment;
-    var result = callback();
+    var result = await callback();
     _environment = oldEnvironment;
     return result;
   }
@@ -2922,10 +2944,10 @@ class EvaluateVisitor
   /// If [trim] is `true`, removes whitespace around the result. If
   /// [warnForColor] is `true`, this will emit a warning for any named color
   /// values passed into the interpolation.
-  CssValue<String> _interpolationToValue(Interpolation interpolation,
-      {bool trim = false, bool warnForColor = false}) {
+  Future<CssValue<String>> _interpolationToValue(Interpolation interpolation,
+      {bool trim = false, bool warnForColor = false}) async {
     var result =
-        _performInterpolation(interpolation, warnForColor: warnForColor);
+    await _performInterpolation(interpolation, warnForColor: warnForColor);
     return CssValue(trim ? trimAscii(result, excludeEscape: true) : result,
         interpolation.span);
   }
@@ -2934,9 +2956,9 @@ class EvaluateVisitor
   ///
   /// If [warnForColor] is `true`, this will emit a warning for any named color
   /// values passed into the interpolation.
-  String _performInterpolation(Interpolation interpolation,
-      {bool warnForColor = false}) {
-    var tuple = _performInterpolationHelper(interpolation,
+  Future<String> _performInterpolation(Interpolation interpolation,
+      {bool warnForColor = false}) async {
+    var tuple = await _performInterpolationHelper(interpolation,
         sourceMap: true, warnForColor: warnForColor);
     return tuple.item1;
   }
@@ -2954,10 +2976,10 @@ class EvaluateVisitor
 
   /// A helper that implements the core logic of both [_performInterpolation]
   /// and [_performInterpolationWithMap].
-  Tuple2<String, InterpolationMap?> _performInterpolationHelper(
+  Future<Tuple2<String, InterpolationMap?>> _performInterpolationHelper(
       Interpolation interpolation,
       {required bool sourceMap,
-      bool warnForColor = false}) {
+        bool warnForColor = false}) async {
     var targetLocations = sourceMap ? <SourceLocation>[] : null;
     var oldInSupportsDeclaration = _inSupportsDeclaration;
     _inSupportsDeclaration = false;
@@ -2973,7 +2995,7 @@ class EvaluateVisitor
       }
 
       var expression = value as Expression;
-      var result = expression.accept(this);
+      var result = await expression.accept(this);
 
       if (warnForColor &&
           result is SassColor &&
@@ -2985,12 +3007,12 @@ class EvaluateVisitor
             expression);
         _warn(
             "You probably don't mean to use the color value "
-            "${namesByColor[result]} in interpolation here.\n"
-            "It may end up represented as $result, which will likely produce "
-            "invalid CSS.\n"
-            "Always quote color names when using them as strings or map keys "
-            '(for example, "${namesByColor[result]}").\n'
-            "If you really want to use the color value here, use '$alternative'.",
+                "${namesByColor[result]} in interpolation here.\n"
+                "It may end up represented as $result, which will likely produce "
+                "invalid CSS.\n"
+                "Always quote color names when using them as strings or map keys "
+                '(for example, "${namesByColor[result]}").\n'
+                "If you really want to use the color value here, use '$alternative'.",
             expression.span);
       }
 
@@ -3007,8 +3029,9 @@ class EvaluateVisitor
 
   /// Evaluates [expression] and calls `toCssString()` and wraps a
   /// [SassScriptException] to associate it with [span].
-  String _evaluateToCss(Expression expression, {bool quote = true}) =>
-      _serialize(expression.accept(this), expression, quote: quote);
+  Future<String> _evaluateToCss(Expression expression,
+      {bool quote = true}) async =>
+      _serialize(await expression.accept(this), expression, quote: quote);
 
   /// Calls `value.toCssString()` and wraps a [SassScriptException] to associate
   /// it with [nodeWithSpan]'s source span.
@@ -3036,9 +3059,9 @@ class EvaluateVisitor
 
     if (expression is VariableExpression) {
       return _addExceptionSpan(
-              expression,
+          expression,
               () => _environment.getVariableNode(expression.name,
-                  namespace: expression.namespace)) ??
+              namespace: expression.namespace)) ??
           expression;
     } else {
       return expression;
@@ -3139,12 +3162,12 @@ class EvaluateVisitor
   /// This takes an [AstNode] rather than a [FileSpan] so it can avoid calling
   /// [AstNode.span] if the span isn't required, since some nodes need to do
   /// real work to manufacture a source span.
-  T _withStackFrame<T>(
-      String member, AstNode nodeWithSpan, T Function() callback) {
+  Future<T> _withStackFrame<T>(
+      String member, AstNode nodeWithSpan, Future<T> Function() callback) async {
     _stack.add(Tuple2(_member, nodeWithSpan));
     var oldMember = _member;
     _member = member;
-    var result = callback();
+    var result = await callback();
     _member = oldMember;
     _stack.removeLast();
     return result;
@@ -3166,12 +3189,12 @@ class EvaluateVisitor
 
       _warn(
           "Using / for division is deprecated and will be removed in Dart Sass "
-          "2.0.0.\n"
-          "\n"
-          "Recommendation: ${recommendation(value)}\n"
-          "\n"
-          "More info and automated migrator: "
-          "https://sass-lang.com/d/slash-div",
+              "2.0.0.\n"
+              "\n"
+              "Recommendation: ${recommendation(value)}\n"
+              "\n"
+              "More info and automated migrator: "
+              "https://sass-lang.com/d/slash-div",
           nodeForSpan.span,
           Deprecation.slashDiv);
     }
@@ -3224,7 +3247,7 @@ class EvaluateVisitor
   ///
   /// The primary span is taken from the current stack trace span.
   SassRuntimeException _multiSpanException(String message, String primaryLabel,
-          Map<FileSpan, String> secondaryLabels) =>
+      Map<FileSpan, String> secondaryLabels) =>
       MultiSpanSassRuntimeException(message, _stack.last.item2.span,
           primaryLabel, secondaryLabels, _stackTrace());
 
@@ -3250,12 +3273,27 @@ class EvaluateVisitor
     }
   }
 
+  /// Like [_addExceptionSpan], but for an asynchronous [callback].
+  Future<T> _addExceptionSpanAsync<T>(
+      AstNode nodeWithSpan, FutureOr<T> Function() callback,
+      {bool addStackFrame = true}) async {
+    try {
+      return await callback();
+    } on SassScriptException catch (error, stackTrace) {
+      throwWithTrace(
+          error
+              .withSpan(nodeWithSpan.span)
+              .withTrace(_stackTrace(addStackFrame ? nodeWithSpan.span : null)),
+          stackTrace);
+    }
+  }
+
   /// Runs [callback], and converts any [SassException]s that aren't already
   /// [SassRuntimeException]s to [SassRuntimeException]s with the current stack
   /// trace.
-  T _addExceptionTrace<T>(T Function() callback) {
+  Future<T> _addExceptionTrace<T>(FutureOr<T> Function() callback) async {
     try {
-      return callback();
+      return await callback();
     } on SassRuntimeException {
       rethrow;
     } on SassException catch (error, stackTrace) {
@@ -3266,9 +3304,9 @@ class EvaluateVisitor
   /// Runs [callback], and converts any [SassRuntimeException]s containing an
   /// @error to throw a more relevant [SassRuntimeException] with [nodeWithSpan]'s
   /// source span.
-  T _addErrorSpan<T>(AstNode nodeWithSpan, T Function() callback) {
+  Future<T> _addErrorSpan<T>(AstNode nodeWithSpan, Future<T> Function() callback) async {
     try {
-      return callback();
+      return await callback();
     } on SassRuntimeException catch (error, stackTrace) {
       if (!error.span.text.startsWith("@error")) rethrow;
       throwWithTrace(
@@ -3282,7 +3320,7 @@ class EvaluateVisitor
 /// [_EvaluateVisitor].
 class _EvaluationContext implements EvaluationContext {
   /// The visitor backing this context.
-  final EvaluateVisitor _visitor;
+  final AsyncEvaluateVisitor _visitor;
 
   /// The AST node whose span should be used for [warn] if no other span is
   /// available.
@@ -3337,7 +3375,7 @@ class _ArgumentResults {
       this.namedNodes, this.separator);
 }
 
-/// The result of loading a stylesheet via [Evaluator._loadStylesheet].
+/// The result of loading a stylesheet via [AsyncEvaluator._loadStylesheet].
 class _LoadedStylesheet {
   /// The stylesheet itself.
   final Stylesheet stylesheet;
@@ -3345,7 +3383,7 @@ class _LoadedStylesheet {
   /// The importer that was used to load the stylesheet.
   ///
   /// This is `null` when running in Node Sass compatibility mode.
-  final Importer? importer;
+  final AsyncImporter? importer;
 
   /// Whether this load counts as a dependency.
   ///

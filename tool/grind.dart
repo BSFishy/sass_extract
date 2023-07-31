@@ -7,6 +7,8 @@ import 'package:source_span/source_span.dart';
 import 'package:cli_pkg/cli_pkg.dart' as pkg;
 import 'package:grinder/grinder.dart';
 
+export 'grind/synchronize.dart';
+
 void main(args) {
   pkg.humanName.value = 'sass_extract';
   pkg.executables.value = {'sass_extract': 'bin/sass_extract.dart'};
