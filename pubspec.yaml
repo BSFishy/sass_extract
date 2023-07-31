@@ -1,6 +1,6 @@
 name: sass_extract
 description: A tool to extract Sass variables from a file
-version: 1.0.0
+version: 1.1.0
 
 environment:
   sdk: ^3.0.6
