@@ -6,6 +6,10 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Add `url` and `syntax` options ([#1](https://github.com/BSFishy/sass_extract/pull/1))
+- Add from file function ([#1](https://github.com/BSFishy/sass_extract/pull/1))
+- Add async functions ([#1](https://github.com/BSFishy/sass_extract/pull/1))
+
 ### Changed
 
 ### Deprecated

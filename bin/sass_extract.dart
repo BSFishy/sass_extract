@@ -31,13 +31,10 @@ void main(List<String> arguments) {
 
   final inputPath = results.rest.first;
   final outputPath = (results['output'] as String?) ?? setExtension(inputPath, '.json');
-  final importPath = dirname(inputPath);
-
-  final contents = readFile(inputPath);
 
   Map<String, Object?> variables;
   try {
-    variables = sass_extract.extractVariablesFromString(contents, path: importPath);
+    variables = sass_extract.extractVariablesFromFile(inputPath);
   } catch (error) {
     print(error);
 
@@ -47,7 +44,6 @@ void main(List<String> arguments) {
 
   final json = jsonEncode(variables);
 
-  // final outputFile = File(outputPath);
   writeFile(outputPath, '$json\n');
 
   if (!quiet) {
