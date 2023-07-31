@@ -99,17 +99,6 @@ class _Visitor extends RecursiveAstVisitor<void> {
 // ignore_for_file: unused_import
 """);
 
-    // if (p.basename(_path) == 'async_evaluate.dart') {
-    //   _buffer.writeln();
-    //   _buffer.writeln("import 'async_evaluate.dart' show EvaluateResult;");
-    //   _buffer.writeln("export 'async_evaluate.dart' show EvaluateResult;");
-    //   _buffer.writeln();
-    // } else if (p.basename(_path) == 'async_compile.dart') {
-    //   _buffer.writeln();
-    //   _buffer.writeln("export 'async_compile.dart';");
-    //   _buffer.writeln();
-    // }
-
     _position = afterHeader;
   }
 
@@ -141,20 +130,16 @@ class _Visitor extends RecursiveAstVisitor<void> {
 
   @override
   void visitClassDeclaration(ClassDeclaration node) {
-    // if (_sharedClasses.contains(node.name.lexeme)) {
-    //   _skipNode(node);
-    // } else {
-      for (var child in node.sortedCommentAndAnnotations) {
-        child.accept(this);
-      }
-      _rename(node.name);
-      node.typeParameters?.accept(this);
-      node.extendsClause?.accept(this);
-      node.withClause?.accept(this);
-      node.implementsClause?.accept(this);
-      node.nativeClause?.accept(this);
-      node.members.accept(this);
-    // }
+    for (var child in node.sortedCommentAndAnnotations) {
+      child.accept(this);
+    }
+    _rename(node.name);
+    node.typeParameters?.accept(this);
+    node.extendsClause?.accept(this);
+    node.withClause?.accept(this);
+    node.implementsClause?.accept(this);
+    node.nativeClause?.accept(this);
+    node.members.accept(this);
   }
 
   @override
