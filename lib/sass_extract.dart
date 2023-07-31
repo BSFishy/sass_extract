@@ -28,7 +28,7 @@ Map<String, Object?> extractVariablesFromString(String source, {String? path, Ob
 Map<String, Object?> extractVariablesFromFile(String url, {String? path, Syntax? syntax}) {
   final source = readFile(url);
 
-  return extractVariablesFromString(source, path: path ?? p.dirname(source), url: url, syntax: syntax);
+  return extractVariablesFromString(source, path: path ?? p.dirname(url), url: url, syntax: syntax);
 }
 
 Future<Map<String, Object?>> extractVariablesFromStringAsync(String source, {String? path, Object? url, Syntax? syntax}) async {
